@@ -1,0 +1,19 @@
+{
+  "name": "MPLAD AI Monitor",
+  "short_name": "MPLAD AI",
+  "description": "AI-Assisted MPLAD Infrastructure Monitoring, Fraud Prevention & Public Transparency",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "pwa-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
