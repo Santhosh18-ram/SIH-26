@@ -40,12 +40,15 @@ export default function InteractiveMap({ projects, onSelectProject }) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {projects.map((p) => {
-          const band = p.risk_band || 'Low';
+        {(projects || []).map((p) => {
+          const lat = p.lat ?? p.latitude ?? 25.3176;
+          const lng = p.lng ?? p.longitude ?? 82.9739;
+          const band = p.risk_band || (p.risk_level?.includes('High') ? 'High' : p.risk_level?.includes('Medium') ? 'Medium' : 'Low');
+          const score = p.composite_risk_score ?? p.risk_score ?? 15;
           const icon = MARKER_ICONS[band] || MARKER_ICONS['Low'];
 
           return (
-            <Marker key={p.id} position={[p.lat, p.lng]} icon={icon}>
+            <Marker key={p.id} position={[lat, lng]} icon={icon}>
               <Popup className="mplad-map-popup">
                 <div className="p-1 max-w-xs text-slate-900">
                   <div className="flex items-center justify-between gap-2 mb-1">
@@ -57,23 +60,18 @@ export default function InteractiveMap({ projects, onSelectProject }) {
                       band === 'High' ? 'bg-orange-500' :
                       band === 'Medium' ? 'bg-amber-500' : 'bg-emerald-600'
                     }`}>
-                      {band} Risk ({p.risk_score})
+                      {band} Risk ({score})
                     </span>
                   </div>
-
-                  <h4 className="font-bold text-sm leading-tight text-slate-900 mb-1">{p.title}</h4>
-                  <p className="text-xs text-slate-600 mb-2">{p.district}, {p.constituency}</p>
-
-                  <div className="grid grid-cols-2 gap-1 text-[11px] bg-slate-50 p-1.5 rounded mb-2 border">
-                    <div><span className="text-slate-500">Fund:</span> <strong>₹{p.sanctioned_fund}L</strong></div>
-                    <div><span className="text-slate-500">Progress:</span> <strong>{p.current_progress_pct}%</strong></div>
-                  </div>
-
+                  <h4 className="font-bold text-xs text-slate-900 leading-tight mb-1">{p.title}</h4>
+                  <p className="text-[11px] text-slate-600 mb-2">
+                    Sanction: <strong>₹{p.sanctioned_amount || p.sanctioned_fund || 0}L</strong> | Progress: <strong>{p.physical_progress || 0}%</strong>
+                  </p>
                   <button
-                    onClick={() => onSelectProject(p)}
-                    className="w-full py-1 text-xs font-bold text-white bg-cyan-700 hover:bg-cyan-800 rounded transition"
+                    onClick={() => onSelectProject && onSelectProject(p)}
+                    className="w-full text-center py-1 bg-cyan-600 hover:bg-cyan-700 text-white rounded text-[11px] font-bold transition"
                   >
-                    View Project Details
+                    View Project Details &rarr;
                   </button>
                 </div>
               </Popup>

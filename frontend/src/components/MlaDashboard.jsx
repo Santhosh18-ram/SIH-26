@@ -8,7 +8,7 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 import InteractiveMap from './InteractiveMap';
 import RejectProposalModal from './RejectProposalModal';
-import { FALLBACK_PROPOSALS, FALLBACK_COMPLAINTS } from '../utils/fallbackData';
+import { FALLBACK_PROPOSALS, FALLBACK_COMPLAINTS, FALLBACK_REF_PROJECTS } from '../utils/fallbackData';
 
 export default function MlaDashboard({ 
   stats, projects, fundRequests, auditLogs, 
@@ -37,7 +37,7 @@ export default function MlaDashboard({
 
   // Reviewing fund request state
   const [justificationInput, setJustificationInput] = useState({});
-  const [refProjectsData, setRefProjectsData] = useState(null);
+  const [refProjectsData, setRefProjectsData] = useState(FALLBACK_REF_PROJECTS);
   const [refCategory, setRefCategory] = useState('ALL');
   const [refTerrain, setRefTerrain] = useState('ALL');
 

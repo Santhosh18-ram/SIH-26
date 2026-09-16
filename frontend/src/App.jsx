@@ -8,7 +8,7 @@ import ProjectDetailModal from './components/ProjectDetailModal';
 import FundRequestModal from './components/FundRequestModal';
 import ComplaintModal from './components/ComplaintModal';
 import BudgetCalculatorModal from './components/BudgetCalculatorModal';
-import { FALLBACK_STATS, FALLBACK_PROJECTS, FALLBACK_FUND_REQUESTS } from './utils/fallbackData';
+import { FALLBACK_STATS, FALLBACK_PROJECTS, FALLBACK_FUND_REQUESTS, FALLBACK_AUDIT_LOGS } from './utils/fallbackData';
 
 export default function App() {
   const [currentRole, setCurrentRole] = useState('mla_admin'); // mla_admin, agency, field_worker, public
@@ -17,7 +17,7 @@ export default function App() {
   const [projects, setProjects] = useState(FALLBACK_PROJECTS);
   const [stats, setStats] = useState(FALLBACK_STATS);
   const [fundRequests, setFundRequests] = useState(FALLBACK_FUND_REQUESTS);
-  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLogs, setAuditLogs] = useState(FALLBACK_AUDIT_LOGS);
 
   // Modals state
   const [selectedProject, setSelectedProject] = useState(null);
