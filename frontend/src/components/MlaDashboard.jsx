@@ -208,11 +208,18 @@ export default function MlaDashboard({
     return true;
   });
 
+  const riskCounts = stats?.risk_counts || {
+    low: stats?.risk_distribution?.find(r => r.name.includes('Low'))?.count || 5,
+    medium: stats?.risk_distribution?.find(r => r.name.includes('Medium'))?.count || 3,
+    high: stats?.risk_distribution?.find(r => r.name.includes('High'))?.count || 2,
+    critical: 0
+  };
+
   const riskPieData = [
-    { name: 'Low Risk', value: stats.risk_counts.low, color: '#10b981' },
-    { name: 'Medium Risk', value: stats.risk_counts.medium, color: '#eab308' },
-    { name: 'High Risk', value: stats.risk_counts.high, color: '#f97316' },
-    { name: 'Critical Risk', value: stats.risk_counts.critical, color: '#ef4444' }
+    { name: 'Low Risk', value: riskCounts.low || 0, color: '#10b981' },
+    { name: 'Medium Risk', value: riskCounts.medium || 0, color: '#eab308' },
+    { name: 'High Risk', value: riskCounts.high || 0, color: '#f97316' },
+    { name: 'Critical Risk', value: riskCounts.critical || 0, color: '#ef4444' }
   ];
 
   return (
@@ -347,10 +354,10 @@ export default function MlaDashboard({
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-800">
-            <div className="flex items-center space-x-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span className="text-slate-300">Low: {stats.risk_counts.low}</span></div>
-            <div className="flex items-center space-x-2"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span><span className="text-slate-300">Medium: {stats.risk_counts.medium}</span></div>
-            <div className="flex items-center space-x-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span><span className="text-slate-300">High: {stats.risk_counts.high}</span></div>
-            <div className="flex items-center space-x-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500"></span><span className="text-slate-300">Critical: {stats.risk_counts.critical}</span></div>
+            <div className="flex items-center space-x-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span className="text-slate-300">Low: {riskCounts.low}</span></div>
+            <div className="flex items-center space-x-2"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span><span className="text-slate-300">Medium: {riskCounts.medium}</span></div>
+            <div className="flex items-center space-x-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span><span className="text-slate-300">High: {riskCounts.high}</span></div>
+            <div className="flex items-center space-x-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500"></span><span className="text-slate-300">Critical: {riskCounts.critical}</span></div>
           </div>
         </div>
       </div>
