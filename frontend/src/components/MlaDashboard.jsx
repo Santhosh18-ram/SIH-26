@@ -180,7 +180,9 @@ export default function MlaDashboard({
     if (statusFilter !== 'ALL' && p.status !== statusFilter) return false;
     if (search) {
       const q = search.toLowerCase();
-      return p.title.toLowerCase().includes(q) || p.district.toLowerCase().includes(q) || p.agency_name.toLowerCase().includes(q);
+      return (p.title || '').toLowerCase().includes(q) || 
+             (p.district || '').toLowerCase().includes(q) || 
+             (p.agency_name || p.description || '').toLowerCase().includes(q);
     }
     return true;
   });
@@ -718,7 +720,7 @@ export default function MlaDashboard({
                           The AI Duplicate Detection Engine found matching existing works. Sanctioning duplicate funds for already proposed or existing infrastructure is a primary MPLAD scheme violation.
                         </p>
                         <div className="space-y-1.5 pt-1">
-                          {prop.duplicate_suspects.map((dup, dIdx) => (
+                          {(prop.duplicate_suspects || []).map((dup, dIdx) => (
                             <div key={dIdx} className="bg-slate-950/80 p-2.5 rounded-lg border border-rose-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                               <div>
                                 <span className="font-bold text-white">Matching Work: {dup.title}</span>

@@ -48,7 +48,9 @@ export default function PublicPortal({
     if (riskFilter !== 'ALL' && (p.risk_band || 'Low').toLowerCase() !== riskFilter.toLowerCase()) return false;
     if (search) {
       const q = search.toLowerCase();
-      return p.title.toLowerCase().includes(q) || p.district.toLowerCase().includes(q) || p.description.toLowerCase().includes(q);
+      return (p.title || '').toLowerCase().includes(q) || 
+             (p.district || '').toLowerCase().includes(q) || 
+             (p.description || p.category || '').toLowerCase().includes(q);
     }
     return true;
   });
