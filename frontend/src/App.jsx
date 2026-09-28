@@ -8,16 +8,28 @@ import ProjectDetailModal from './components/ProjectDetailModal';
 import FundRequestModal from './components/FundRequestModal';
 import ComplaintModal from './components/ComplaintModal';
 import BudgetCalculatorModal from './components/BudgetCalculatorModal';
-import { FALLBACK_STATS, FALLBACK_PROJECTS, FALLBACK_FUND_REQUESTS, FALLBACK_AUDIT_LOGS } from './utils/fallbackData';
+import { 
+  FALLBACK_STATS, 
+  FALLBACK_PROJECTS, 
+  FALLBACK_FUND_REQUESTS, 
+  FALLBACK_AUDIT_LOGS,
+  getStoredProjects,
+  getStoredFundRequests,
+  updateStoredFundRequest,
+  getStoredAuditLogs,
+  storeAuditLog,
+  getStoredComplaints,
+  updateStoredComplaint
+} from './utils/fallbackData';
 
 export default function App() {
   const [currentRole, setCurrentRole] = useState('mla_admin'); // mla_admin, agency, field_worker, public
   const [activeDistrict, setActiveDistrict] = useState('ALL');
   
-  const [projects, setProjects] = useState(FALLBACK_PROJECTS);
+  const [projects, setProjects] = useState(getStoredProjects());
   const [stats, setStats] = useState(FALLBACK_STATS);
-  const [fundRequests, setFundRequests] = useState(FALLBACK_FUND_REQUESTS);
-  const [auditLogs, setAuditLogs] = useState(FALLBACK_AUDIT_LOGS);
+  const [fundRequests, setFundRequests] = useState(getStoredFundRequests());
+  const [auditLogs, setAuditLogs] = useState(getStoredAuditLogs());
 
   // Modals state
   const [selectedProject, setSelectedProject] = useState(null);
@@ -38,11 +50,13 @@ export default function App() {
         fetch('/api/audit-logs')
       ]);
 
-      if (pRes.ok && sRes.ok) {
+      const pType = pRes.headers.get('content-type');
+      const sType = sRes.headers.get('content-type');
+      if (pRes.ok && sRes.ok && pType && pType.includes('application/json') && sType && sType.includes('application/json')) {
         const pData = await pRes.json();
         const sData = await sRes.json();
-        const fData = await fRes.json();
-        const aData = await aRes.json();
+        const fData = await fRes.json().catch(() => getStoredFundRequests());
+        const aData = await aRes.json().catch(() => getStoredAuditLogs());
 
         setProjects(pData);
         setStats(sData);
@@ -52,15 +66,15 @@ export default function App() {
         applyFallbackData(activeDistrict);
       }
     } catch (err) {
-      console.warn("Backend API not reachable, running in Standalone / Offline mode with district filtering:", err);
       applyFallbackData(activeDistrict);
     }
   };
 
   const applyFallbackData = (dist) => {
+    const stored = getStoredProjects();
     const filtered = dist === 'ALL'
-      ? FALLBACK_PROJECTS
-      : FALLBACK_PROJECTS.filter(p => (p.district || '').toLowerCase() === dist.toLowerCase());
+      ? stored
+      : stored.filter(p => (p.district || '').toLowerCase() === dist.toLowerCase());
     
     const totalSanctioned = filtered.reduce((acc, p) => acc + (p.sanctioned_amount || p.sanctioned_fund || 0), 0);
     const totalSpent = filtered.reduce((acc, p) => acc + (p.spent_amount || p.spent_fund || 0), 0);
@@ -75,10 +89,10 @@ export default function App() {
       total_projects: filtered.length,
       completed_count: completedCount,
       completed_projects: completedCount,
-      total_sanctioned_fund_lakhs: totalSanctioned,
-      total_sanctioned: totalSanctioned,
-      total_spent_fund_lakhs: totalSpent,
-      total_spent: totalSpent,
+      total_sanctioned_fund_lakhs: parseFloat(totalSanctioned.toFixed(2)),
+      total_sanctioned: parseFloat(totalSanctioned.toFixed(2)),
+      total_spent_fund_lakhs: parseFloat(totalSpent.toFixed(2)),
+      total_spent: parseFloat(totalSpent.toFixed(2)),
       risk_counts: { low: lowRisk, medium: medRisk, high: highRisk, critical: 0 },
       risk_distribution: [
         { name: 'Low Risk', count: lowRisk, color: '#10b981' },
@@ -86,8 +100,8 @@ export default function App() {
         { name: 'High Risk', count: highRisk, color: '#ef4444' }
       ]
     });
-    setFundRequests(FALLBACK_FUND_REQUESTS);
-    setAuditLogs(FALLBACK_AUDIT_LOGS);
+    setFundRequests(getStoredFundRequests());
+    setAuditLogs(getStoredAuditLogs());
   };
 
   useEffect(() => {
@@ -95,21 +109,40 @@ export default function App() {
   }, [activeDistrict]);
 
   const handleReviewFundRequest = async (id, action, justification = '') => {
+    let backendSuccess = false;
     try {
       const res = await fetch(`/api/fund-requests/${id}/review`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, override_justification: justification })
       });
-      if (!res.ok) {
-        const errData = await res.json();
-        alert(errData.detail || "Error reviewing fund request");
-        return;
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
+        backendSuccess = true;
       }
-      fetchData();
     } catch (err) {
-      console.error(err);
+      backendSuccess = false;
     }
+
+    if (!backendSuccess) {
+      updateStoredFundRequest(id, {
+        status: action === 'approve' ? 'approved' : 'rejected',
+        status_label: action === 'approve' ? 'Approved' : 'Rejected',
+        status_color: action === 'approve' 
+          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+          : 'bg-red-500/20 text-red-400 border border-red-500/30'
+      });
+      storeAuditLog({
+        id: Date.now(),
+        actor: 'Hon. MLA Rajesh Sharma',
+        role: 'mla_admin',
+        action_type: action === 'approve' ? 'FUND_RELEASE_APPROVED' : 'FUND_RELEASE_REJECTED',
+        details: `${action === 'approve' ? 'Approved' : 'Rejected'} fund release request #${id}. Note: ${justification || 'Standard approval'}`,
+        timestamp: new Date().toLocaleString()
+      });
+    }
+
+    fetchData();
   };
 
   const handleFileComplaintOpen = (project, category = 'General Issue') => {
@@ -118,20 +151,39 @@ export default function App() {
   };
 
   const handleRespondComplaint = async (complaintId, responseText) => {
+    let backendSuccess = false;
     try {
-      await fetch(`/api/complaints/${complaintId}`, {
+      const res = await fetch(`/api/complaints/${complaintId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mla_response: responseText, status: 'In Progress' })
       });
-      fetchData();
-      if (selectedProject) {
-        const detailRes = await fetch(`/api/projects/${selectedProject.id}`);
-        const detailData = await detailRes.json();
-        setSelectedProject({ ...detailData.project, ...detailData.risk_assessment, complaint_count: detailData.complaints.length, update_count: detailData.worker_updates.length });
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
+        backendSuccess = true;
       }
     } catch (err) {
-      console.error(err);
+      backendSuccess = false;
+    }
+
+    if (!backendSuccess) {
+      updateStoredComplaint(complaintId, { mla_response: responseText, status: 'In Progress' });
+      storeAuditLog({
+        id: Date.now(),
+        actor: 'Hon. MLA Rajesh Sharma',
+        role: 'mla_admin',
+        action_type: 'GRIEVANCE_RESOLVED',
+        details: `Responded to grievance #${complaintId}: "${responseText}"`,
+        timestamp: new Date().toLocaleString()
+      });
+    }
+
+    fetchData();
+    if (selectedProject) {
+      setSelectedProject(prev => prev ? ({
+        ...prev,
+        complaints: (prev.complaints || []).map(c => c.id === complaintId ? { ...c, mla_response: responseText } : c)
+      }) : null);
     }
   };
 

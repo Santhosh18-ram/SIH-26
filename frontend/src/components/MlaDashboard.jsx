@@ -8,7 +8,18 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 import InteractiveMap from './InteractiveMap';
 import RejectProposalModal from './RejectProposalModal';
-import { FALLBACK_PROPOSALS, FALLBACK_COMPLAINTS, FALLBACK_REF_PROJECTS } from '../utils/fallbackData';
+import { 
+  FALLBACK_PROPOSALS, 
+  FALLBACK_COMPLAINTS, 
+  FALLBACK_REF_PROJECTS,
+  getStoredProposals,
+  updateStoredProposal,
+  getStoredComplaints,
+  updateStoredComplaint,
+  getStoredProjects,
+  storeProject,
+  storeAuditLog
+} from '../utils/fallbackData';
 
 export default function MlaDashboard({ 
   stats, projects, fundRequests, auditLogs, 
@@ -45,26 +56,30 @@ export default function MlaDashboard({
   const fetchProposals = async () => {
     try {
       const res = await fetch('/api/projects/proposals');
-      if (res.ok) {
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
         const data = await res.json();
         setProposals(data);
+      } else {
+        setProposals(getStoredProposals());
       }
     } catch (err) {
-      console.warn("Proposals fetch error, using local state:", err);
-      setProposals(FALLBACK_PROPOSALS);
+      setProposals(getStoredProposals());
     }
   };
 
   const fetchComplaints = async () => {
     try {
       const res = await fetch('/api/complaints');
-      if (res.ok) {
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
         const data = await res.json();
         setComplaints(data);
+      } else {
+        setComplaints(getStoredComplaints());
       }
     } catch (err) {
-      console.warn("Complaints fetch error, using local state:", err);
-      setComplaints(FALLBACK_COMPLAINTS);
+      setComplaints(getStoredComplaints());
     }
   };
 
@@ -79,7 +94,8 @@ export default function MlaDashboard({
       if (params.length > 0) url += `?${params.join('&')}`;
 
       const res = await fetch(url);
-      if (res.ok) {
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
         const data = await res.json();
         setRefProjectsData(data);
       }
@@ -108,6 +124,7 @@ export default function MlaDashboard({
     const workerId = proposalWorkers[proposalId] ? parseInt(proposalWorkers[proposalId]) : 2;
     const workerName = workerId === 2 ? 'Suresh Kumar (JE)' : workerId === 3 ? 'Ramesh Patel (Supervisor)' : 'Anita Singh (Inspector)';
 
+    let backendApproved = false;
     try {
       const res = await fetch(`/api/projects/${proposalId}/approve`, {
         method: 'POST',
@@ -121,43 +138,120 @@ export default function MlaDashboard({
           worker_name: workerName
         })
       });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || 'Approval failed');
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
+        backendApproved = true;
       }
-
-      alert("Project sanctioned & approved successfully! Now live in active projects and public map.");
-      fetchProposals();
-      window.location.reload();
-    } catch (err) {
-      alert(err.message);
+    } catch (e) {
+      backendApproved = false;
     }
+
+    if (!backendApproved) {
+      // Offline / GitHub Pages fallback handler
+      const allProps = getStoredProposals();
+      const prop = allProps.find(p => p.id === proposalId) || proposals.find(p => p.id === proposalId);
+      if (prop) {
+        updateStoredProposal(proposalId, { proposal_status: 'approved', status: 'In Progress' });
+        const finalFund = customFund || prop.proposed_cost || prop.estimated_fund || 50.0;
+        const newProject = {
+          id: prop.id || Date.now(),
+          title: prop.title,
+          category: prop.category,
+          district: prop.district || 'Varanasi',
+          state: prop.state || 'Uttar Pradesh',
+          constituency: prop.constituency || 'Varanasi Cantt',
+          latitude: prop.lat || prop.latitude || 25.3340,
+          longitude: prop.lng || prop.longitude || 82.9810,
+          lat: prop.lat || prop.latitude || 25.3340,
+          lng: prop.lng || prop.longitude || 82.9810,
+          sanctioned_amount: finalFund,
+          sanctioned_fund: finalFund,
+          released_amount: parseFloat((finalFund * 0.4).toFixed(1)),
+          spent_amount: 0,
+          spent_fund: 0,
+          physical_progress: 5.0,
+          current_progress_pct: 5.0,
+          financial_progress: 0.0,
+          status: 'In Progress',
+          terrain_type: prop.terrain_type || 'Rural',
+          scope_unit: prop.scope_unit || 'km',
+          scope_value: prop.scope_value || 1.0,
+          sanction_cost_per_unit: prop.cost_per_unit || parseFloat((finalFund / (prop.scope_value || 1)).toFixed(2)),
+          benchmark_median_unit_cost: prop.benchmark_median_unit_cost || 24.5,
+          sanction_overrun_pct: prop.sanction_overrun_pct || 0,
+          sanction_risk_level: prop.sanction_risk_level || 'Normal',
+          composite_risk_score: 20.0,
+          risk_score: 20.0,
+          risk_level: 'Low Risk',
+          risk_band: 'Low',
+          anomaly_flags: [],
+          before_photo: prop.future_visualization_url || 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b7?w=800&q=80',
+          future_render: prop.future_visualization_url || 'https://images.unsplash.com/photo-1577495508048-b635879837f1?w=800&q=80',
+          current_photo: prop.future_visualization_url || 'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=800&q=80',
+          assigned_worker_id: workerId,
+          agency_name: prop.agency_name || 'Public Works Department (PWD)',
+          created_at: new Date().toISOString().split('T')[0]
+        };
+        storeProject(newProject);
+        storeAuditLog({
+          id: Date.now(),
+          actor: 'Hon. MLA Rajesh Sharma',
+          role: 'mla_admin',
+          action_type: 'SANCTION_APPROVED',
+          details: `Sanctioned ₹${finalFund}L for '${newProject.title}' assigned to ${workerName}.`,
+          timestamp: new Date().toLocaleString()
+        });
+      }
+    }
+
+    alert("Project sanctioned & approved successfully! Now live in active projects and public map.");
+    fetchProposals();
+    window.location.reload();
   };
 
   const handleConfirmReject = async ({ reason }) => {
     if (!rejectModalProposal) return;
     setIsRejecting(true);
     try {
-      const res = await fetch(`/api/projects/${rejectModalProposal.id}/approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'reject',
-          rejection_reason: reason,
-          approved_by: 'Hon. MLA Rajesh Sharma'
-        })
-      });
-
-      if (res.ok) {
-        setRejectModalProposal(null);
-        fetchProposals();
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(errData.detail || "Failed to reject proposal");
+      let backendRejected = false;
+      try {
+        const res = await fetch(`/api/projects/${rejectModalProposal.id}/approve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'reject',
+            rejection_reason: reason,
+            approved_by: 'Hon. MLA Rajesh Sharma'
+          })
+        });
+        const contentType = res.headers.get('content-type');
+        if (res.ok && contentType && contentType.includes('application/json')) {
+          backendRejected = true;
+        }
+      } catch (e) {
+        backendRejected = false;
       }
+
+      if (!backendRejected) {
+        updateStoredProposal(rejectModalProposal.id, { 
+          proposal_status: 'rejected', 
+          status: 'Rejected',
+          rejection_reason: reason 
+        });
+        storeAuditLog({
+          id: Date.now(),
+          actor: 'Hon. MLA Rajesh Sharma',
+          role: 'mla_admin',
+          action_type: 'PROPOSAL_REJECTED',
+          details: `Rejected proposal '${rejectModalProposal.title}': ${reason}`,
+          timestamp: new Date().toLocaleString()
+        });
+      }
+
+      setRejectModalProposal(null);
+      fetchProposals();
     } catch (err) {
-      alert(err.message);
+      alert(err.message || "Error rejecting proposal");
     } finally {
       setIsRejecting(false);
     }

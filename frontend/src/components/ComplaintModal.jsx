@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Flag, Send, CheckCircle2 } from 'lucide-react';
+import { storeComplaint, storeAuditLog } from '../utils/fallbackData';
 
 export default function ComplaintModal({ project, defaultCategory, onClose, onComplaintSubmitted }) {
   const [citizenName, setCitizenName] = useState('');
@@ -14,20 +15,54 @@ export default function ComplaintModal({ project, defaultCategory, onClose, onCo
     setSubmitting(true);
 
     try {
-      const res = await fetch('/api/complaints', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      let complaintData = null;
+      try {
+        const res = await fetch('/api/complaints', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_id: project.id,
+            citizen_name: citizenName || 'Anonymous Citizen',
+            category: category,
+            description: description,
+            photo_url: photoUrl
+          })
+        });
+        const contentType = res.headers.get('content-type');
+        if (res.ok && contentType && contentType.includes('application/json')) {
+          complaintData = await res.json();
+        }
+      } catch (apiErr) {
+        complaintData = null;
+      }
+
+      if (!complaintData) {
+        const trackingCode = `CMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        complaintData = {
+          id: Date.now(),
           project_id: project.id,
           citizen_name: citizenName || 'Anonymous Citizen',
+          citizen_phone: '+91-9876500000',
           category: category,
           description: description,
-          photo_url: photoUrl
-        })
-      });
+          photo_url: photoUrl || project.current_photo || project.before_photo,
+          status: 'Open',
+          tracking_code: trackingCode,
+          created_at: new Date().toISOString().split('T')[0],
+          mla_response: ''
+        };
+        storeComplaint(complaintData);
+        storeAuditLog({
+          id: Date.now(),
+          actor: citizenName || 'Anonymous Citizen',
+          role: 'citizen',
+          action_type: 'COMPLAINT_FILED',
+          details: `Filed grievance ${trackingCode} for '${project.title}': ${category}`,
+          timestamp: new Date().toLocaleString()
+        });
+      }
 
-      const data = await res.json();
-      setResult(data);
+      setResult(complaintData);
       if (onComplaintSubmitted) onComplaintSubmitted();
     } catch (err) {
       console.error(err);

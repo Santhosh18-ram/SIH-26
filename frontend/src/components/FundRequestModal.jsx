@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Sparkles, AlertTriangle, CheckCircle2, TreePine, Building, ShieldAlert, BarChart3, HelpCircle } from 'lucide-react';
+import { computePeerBenchmark, storeFundRequest, storeAuditLog } from '../utils/fallbackData';
 
 export default function FundRequestModal({ onClose, onRequestSubmitted }) {
   const [formData, setFormData] = useState({
@@ -41,12 +42,15 @@ export default function FundRequestModal({ onClose, onRequestSubmitted }) {
             district: formData.district
           })
         });
-        if (res.ok) {
+        const contentType = res.headers.get('content-type');
+        if (res.ok && contentType && contentType.includes('application/json')) {
           const data = await res.json();
           setLivePeerCheck(data);
+        } else {
+          setLivePeerCheck(computePeerBenchmark(formData.category, formData.scope_unit, formData.scope_value, formData.terrain_type, formData.requested_amount));
         }
       } catch (err) {
-        console.error("Live peer check error:", err);
+        setLivePeerCheck(computePeerBenchmark(formData.category, formData.scope_unit, formData.scope_value, formData.terrain_type, formData.requested_amount));
       }
     };
 
@@ -59,25 +63,44 @@ export default function FundRequestModal({ onClose, onRequestSubmitted }) {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/estimate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: formData.project_title,
-          category: formData.category,
-          scope_unit: formData.scope_unit,
-          scope_value: parseFloat(formData.scope_value),
-          terrain_type: formData.terrain_type,
-          district: formData.district,
-          constituency: formData.constituency,
-          sanctioned_fund: parseFloat(formData.requested_amount),
-          trees_to_cut: parseInt(formData.trees_to_cut || 0),
-          buildings_to_demolish: parseInt(formData.buildings_to_demolish || 0)
-        })
-      });
+      let estData = null;
+      try {
+        const res = await fetch('/api/estimate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: formData.project_title,
+            category: formData.category,
+            scope_unit: formData.scope_unit,
+            scope_value: parseFloat(formData.scope_value),
+            terrain_type: formData.terrain_type,
+            district: formData.district,
+            constituency: formData.constituency,
+            sanctioned_fund: parseFloat(formData.requested_amount),
+            trees_to_cut: parseInt(formData.trees_to_cut || 0),
+            buildings_to_demolish: parseInt(formData.buildings_to_demolish || 0)
+          })
+        });
+        const contentType = res.headers.get('content-type');
+        if (res.ok && contentType && contentType.includes('application/json')) {
+          estData = await res.json();
+        }
+      } catch (err) {
+        estData = null;
+      }
 
-      const data = await res.json();
-      setEstimation(data);
+      if (!estData) {
+        const bench = computePeerBenchmark(formData.category, formData.scope_unit, formData.scope_value, formData.terrain_type, formData.requested_amount);
+        estData = {
+          estimated_fund: bench.expected_fair_cost,
+          estimated_days: Math.round(bench.expected_fair_cost * 2.5) || 120,
+          confidence_min_fund: bench.min_cost,
+          confidence_max_fund: bench.max_cost,
+          duplicate_suspects: []
+        };
+      }
+
+      setEstimation(estData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -92,13 +115,48 @@ export default function FundRequestModal({ onClose, onRequestSubmitted }) {
     }
 
     try {
-      const res = await fetch('/api/fund-requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      const data = await res.json();
-      if (onRequestSubmitted) onRequestSubmitted(data);
+      let reqData = null;
+      try {
+        const res = await fetch('/api/fund-requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+        const contentType = res.headers.get('content-type');
+        if (res.ok && contentType && contentType.includes('application/json')) {
+          reqData = await res.json();
+        }
+      } catch (apiErr) {
+        reqData = null;
+      }
+
+      if (!reqData) {
+        reqData = {
+          id: Date.now(),
+          project_id: Date.now(),
+          project_title: formData.project_title,
+          requested_amount: parseFloat(formData.requested_amount),
+          current_physical_progress: 0.0,
+          current_financial_progress: 0.0,
+          status: 'pending',
+          status_label: 'Pending Review',
+          status_color: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+          requested_by: formData.requested_by,
+          request_notes: formData.description,
+          created_at: new Date().toISOString().split('T')[0]
+        };
+        storeFundRequest(reqData);
+        storeAuditLog({
+          id: Date.now(),
+          actor: formData.requested_by,
+          role: 'panchayat',
+          action_type: 'FUND_REQUEST_CREATED',
+          details: `Requested ₹${formData.requested_amount}L for '${formData.project_title}'`,
+          timestamp: new Date().toLocaleString()
+        });
+      }
+
+      if (onRequestSubmitted) onRequestSubmitted(reqData);
       onClose();
     } catch (err) {
       console.error(err);
