@@ -1034,8 +1034,11 @@ def review_fund_request(request_id: int, payload: dict, db: Session = Depends(ge
     return {"message": f"Fund request {action}d successfully"}
 
 @app.get("/api/dashboard/stats")
-def get_dashboard_stats(db: Session = Depends(get_db)):
-    projects = db.query(Project).all()
+def get_dashboard_stats(district: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(Project)
+    if district and district != "ALL":
+        query = query.filter(Project.district == district)
+    projects = query.all()
     total_projects = len(projects)
     total_sanctioned = sum(p.sanctioned_fund for p in projects)
     total_spent = sum(p.spent_fund for p in projects)

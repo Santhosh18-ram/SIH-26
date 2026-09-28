@@ -26,13 +26,14 @@ export default function App() {
   const [complaintTarget, setComplaintTarget] = useState(null);
   const [complaintCategory, setComplaintCategory] = useState('Fake/Wrong Photo');
 
-  // Fetch initial data
+  // Fetch data with dynamic district filtering
   const fetchData = async () => {
     try {
       const pUrl = activeDistrict === 'ALL' ? '/api/projects' : `/api/projects?district=${encodeURIComponent(activeDistrict)}`;
+      const sUrl = activeDistrict === 'ALL' ? '/api/dashboard/stats' : `/api/dashboard/stats?district=${encodeURIComponent(activeDistrict)}`;
       const [pRes, sRes, fRes, aRes] = await Promise.all([
         fetch(pUrl),
-        fetch('/api/dashboard/stats'),
+        fetch(sUrl),
         fetch('/api/fund-requests'),
         fetch('/api/audit-logs')
       ]);
@@ -47,13 +48,46 @@ export default function App() {
         setStats(sData);
         setFundRequests(fData);
         setAuditLogs(aData);
+      } else {
+        applyFallbackData(activeDistrict);
       }
     } catch (err) {
-      console.warn("Backend API not reachable, running in Standalone / Offline mode:", err);
-      setProjects(FALLBACK_PROJECTS);
-      setStats(FALLBACK_STATS);
-      setFundRequests(FALLBACK_FUND_REQUESTS);
+      console.warn("Backend API not reachable, running in Standalone / Offline mode with district filtering:", err);
+      applyFallbackData(activeDistrict);
     }
+  };
+
+  const applyFallbackData = (dist) => {
+    const filtered = dist === 'ALL'
+      ? FALLBACK_PROJECTS
+      : FALLBACK_PROJECTS.filter(p => (p.district || '').toLowerCase() === dist.toLowerCase());
+    
+    const totalSanctioned = filtered.reduce((acc, p) => acc + (p.sanctioned_amount || p.sanctioned_fund || 0), 0);
+    const totalSpent = filtered.reduce((acc, p) => acc + (p.spent_amount || p.spent_fund || 0), 0);
+    const completedCount = filtered.filter(p => p.status === 'Completed').length;
+    const lowRisk = filtered.filter(p => !p.risk_level?.includes('High') && !p.risk_level?.includes('Medium')).length;
+    const medRisk = filtered.filter(p => p.risk_level?.includes('Medium')).length;
+    const highRisk = filtered.filter(p => p.risk_level?.includes('High')).length;
+
+    setProjects(filtered);
+    setStats({
+      ...FALLBACK_STATS,
+      total_projects: filtered.length,
+      completed_count: completedCount,
+      completed_projects: completedCount,
+      total_sanctioned_fund_lakhs: totalSanctioned,
+      total_sanctioned: totalSanctioned,
+      total_spent_fund_lakhs: totalSpent,
+      total_spent: totalSpent,
+      risk_counts: { low: lowRisk, medium: medRisk, high: highRisk, critical: 0 },
+      risk_distribution: [
+        { name: 'Low Risk', count: lowRisk, color: '#10b981' },
+        { name: 'Medium Risk', count: medRisk, color: '#f59e0b' },
+        { name: 'High Risk', count: highRisk, color: '#ef4444' }
+      ]
+    });
+    setFundRequests(FALLBACK_FUND_REQUESTS);
+    setAuditLogs(FALLBACK_AUDIT_LOGS);
   };
 
   useEffect(() => {
@@ -124,6 +158,8 @@ export default function App() {
             projects={projects}
             fundRequests={fundRequests}
             auditLogs={auditLogs}
+            activeDistrict={activeDistrict}
+            setActiveDistrict={setActiveDistrict}
             onSelectProject={(p) => setSelectedProject(p)}
             onOpenNewRequest={() => setShowNewRequestModal(true)}
             onOpenBudgetCalculator={() => setShowBudgetCalculator(true)}
@@ -149,6 +185,8 @@ export default function App() {
           <PublicPortal
             stats={stats}
             projects={projects}
+            activeDistrict={activeDistrict}
+            setActiveDistrict={setActiveDistrict}
             onSelectProject={(p) => setSelectedProject(p)}
             onFileComplaint={handleFileComplaintOpen}
             onOpenBudgetCalculator={() => setShowBudgetCalculator(true)}

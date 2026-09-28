@@ -12,6 +12,7 @@ import { FALLBACK_PROPOSALS, FALLBACK_COMPLAINTS, FALLBACK_REF_PROJECTS } from '
 
 export default function MlaDashboard({ 
   stats, projects, fundRequests, auditLogs, 
+  activeDistrict, setActiveDistrict,
   onSelectProject, onOpenNewRequest, onOpenBudgetCalculator, onReviewFundRequest, onRespondComplaint 
 }) {
   const [activeTab, setActiveTab] = useState('projects'); // projects, proposals, requests, complaints, reference, audit

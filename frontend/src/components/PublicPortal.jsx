@@ -8,7 +8,7 @@ import {
 import InteractiveMap from './InteractiveMap';
 
 export default function PublicPortal({ 
-  stats, projects, onSelectProject, onFileComplaint, onOpenBudgetCalculator 
+  stats, projects, activeDistrict, setActiveDistrict, onSelectProject, onFileComplaint, onOpenBudgetCalculator 
 }) {
   const [search, setSearch] = useState('');
   const [districtFilter, setDistrictFilter] = useState('ALL');
@@ -42,8 +42,10 @@ export default function PublicPortal({
 
   if (!stats) return <div className="p-8 text-center text-slate-400">Loading Public Portal...</div>;
 
+  const currentDist = activeDistrict && activeDistrict !== 'ALL' ? activeDistrict : districtFilter;
+
   const filteredProjects = projects.filter((p) => {
-    if (districtFilter !== 'ALL' && p.district !== districtFilter) return false;
+    if (currentDist !== 'ALL' && p.district !== currentDist) return false;
     if (categoryFilter !== 'ALL' && p.category !== categoryFilter) return false;
     if (riskFilter !== 'ALL' && (p.risk_band || 'Low').toLowerCase() !== riskFilter.toLowerCase()) return false;
     if (search) {
